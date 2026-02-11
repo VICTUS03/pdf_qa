@@ -5,12 +5,29 @@ from langchain_groq import ChatGroq
 from langchain_huggingface import HuggingFaceEmbeddings
 from datasets import Dataset
 import pandas as pd 
+import streamlit as st
+
+
+from dotenv import load_dotenv
+load_dotenv()
+
+def get_key(key_name):
+    try:
+        if key_name in st.secrets:
+            return st.secrets[key_name]
+        
+        return os.environ.get(key_name)
+        
+    except Exception:
+        return None
+
 
 # Judge 
 judge_llm = ChatGroq(
-    api_key=os.getenv("GROQ_API_KEY"),
+    api_key= get_key("GROQ_API_KEY"),
     model="openai/gpt-oss-safeguard-20b",
     temperature=0 
+    )
 
 embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
