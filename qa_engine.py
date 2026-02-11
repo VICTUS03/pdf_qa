@@ -1,4 +1,3 @@
-
 # for qdrant vector database
 import os
 import json
@@ -12,9 +11,21 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
+import streamlit as st
 
 from dotenv import load_dotenv
 load_dotenv()
+
+def get_key(key_name):
+    try:
+        if key_name in st.secrets:
+            return st.secrets[key_name]
+        
+        return os.environ.get(key_name)
+        
+    except Exception:
+        return None
+
 
 def build_qa_chain(docs):
     # SETUP 
@@ -24,8 +35,8 @@ def build_qa_chain(docs):
     embedding_model = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 
     # Qdrant
-    qdrant_url = os.getenv("QDRANT_URL")
-    qdrant_key = os.getenv("QDRANT_API_KEY")
+    qdrant_url = get_key("QDRANT_URL")
+    qdrant_key = get_key("QDRANT_API_KEY")
 
     if qdrant_url and qdrant_key:
         print("☁️ Connecting to Qdrant Cloud...")
@@ -53,7 +64,7 @@ def build_qa_chain(docs):
     reranker = FlashrankRerank(model="ms-marco-MiniLM-L-12-v2")
 
     llm = ChatGroq(
-        api_key=os.getenv("GROQ_API_KEY"),
+        api_key=get_key("GROQ_API_KEY"),
         model="openai/gpt-oss-120b",
         temperature=0
     )
@@ -61,13 +72,11 @@ def build_qa_chain(docs):
     # QUERY 
     query_gen_prompt = ChatPromptTemplate.from_template("""
     You are an AI search optimizer. Your goal is to break down a complex user query into 3 distinct search variations to capture different technical aspects of the documentation.
-
     Rules:
     - Variation 1: Focus on core technical specifications/algorithms.
     - Variation 2: Focus on hardware and system requirements.
     - Variation 3: A broader semantic rephrasing of the entire intent.
     - Output ONLY a JSON list of strings.
-
     Original Query: {question}
     """)
 
@@ -142,13 +151,11 @@ def build_qa_chain(docs):
     # CHAIN 
     final_prompt = ChatPromptTemplate.from_template("""
     You are an expert analyst. Provide a detailed answer based STRICTLY on the context.
-
     Directives:
     1. **Focus:** Read the context thoroughly, do not skip any context. Answer the specific question asked, look carefully for the answer to the specific question, do not miss any information about the question in the context. Do not drift into unrelated topics. (Improves Relevancy)
     2. **Depth:** Explain the 'how' and 'why' using details strictly from the context only, do not use your thinking or outside knowledge to answer the queations, answer should be from the context even if it is too small or to big use the same context and nothing extra. (Improves Size)
     3. **Evidence:** Cite numbers, metrics, or quotes from the context to support your answer and mention the exact relevant page number for the context where the answer to the question is metioned(if present). (Improves Faithfulness)
     4. **Safety:** If the context is empty or irrelevant, say "Data not available", and do not say " No additional quantitative data or detailed descriptions are provided in the context."
-
     Context:
     {context}
     
@@ -164,6 +171,5 @@ def build_qa_chain(docs):
     )
 
     return chain, get_relevant_docs
-
 
 
