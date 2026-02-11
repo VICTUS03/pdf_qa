@@ -10,6 +10,12 @@ from evaluator import evaluate_rag
 st.set_page_config(page_title="Groq-Powered Doc Q&A", layout="centered")
 st.title("⚡ Ultra-Fast Doc Q&A (Multi-PDF + Eval)")
 
+st.info("""
+### ℹ️ System Logic & Performance Note
+* **Routing Logic:** To optimize for cost and speed, documents with **>20 pages** are processed using PyPDFLoader (local), while smaller, complex files use LlamaParse (AI-powered).
+* **Evaluation Metrics:** You may occasionally see NaN for Faithfulness or Relevancy. This is a known behavior of the RAGAS framework when the LLM 'Judge' encounteres formatting issues or empty contexts, actively working on a more robust local evaluation model.
+""", icon="💡")
+
 # Session State
 if "qa_chain" not in st.session_state:
     st.session_state.qa_chain = None
@@ -47,7 +53,8 @@ uploaded_files = st.file_uploader(
     "Upload PDF file(s)", 
     type=["pdf"], 
     accept_multiple_files=True,
-    key=f"uploader_{st.session_state.uploader_key}"
+    key=f"uploader_{st.session_state.uploader_key}",
+    max_upload_size=10
 )
 status_container = st.empty()
 
