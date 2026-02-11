@@ -3,10 +3,21 @@ import tempfile
 from langchain_community.document_loaders import PyPDFLoader 
 from llama_parse import LlamaParse
 from langchain_core.documents import Document
+import streamlit as st
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+def get_key(key_name):
+    try:
+        if key_name in st.secrets:
+            return st.secrets[key_name]
+        
+        return os.environ.get(key_name)
+        
+    except Exception:
+        return None
 
 # LlamaParse
 try:
@@ -14,7 +25,7 @@ try:
         result_type="markdown",
         num_workers=4,
         verbose=True,
-        api_key=os.getenv("LLAMA_CLOUD_API_KEY") 
+        api_key= get_key("LLAMA_CLOUD_API_KEY") 
     )
 except Exception as e:
     print(f"⚠️ LlamaParse Init Failed: {e}")
@@ -42,40 +53,42 @@ def save_uploaded_files(uploaded_files):
 
 
 
+
 def load_pdfs(file_paths):
     all_documents = []
+    # Get threshold from a variable so it's easy to change later
+    PAGE_LIMIT_FOR_LLAMA = 20 
+
     for path in file_paths:
         try:
-            # 1. Try LlamaParse first (High Quality)
-            if parser and os.getenv("LLAMA_CLOUD_API_KEY"):
-                print(f"📄 Parsing with LlamaParse: {path}")
-                llama_docs = parser.load_data(path)
-                
-                # Convert LlamaIndex docs to LangChain docs
-                for l_doc in llama_docs:
-                    all_documents.append(
-                        Document(
-                            page_content=l_doc.text,
-                            metadata=l_doc.metadata
+            # Page Count 
+            reader = PdfReader(path)
+            page_count = len(reader.pages)
+            
+            # small document, use high-quality LlamaParse
+            if page_count <= PAGE_LIMIT_FOR_LLAMA:
+                if parser and os.getenv("LLAMA_CLOUD_API_KEY"):
+                    print(f"✨ Small doc ({page_count} pgs): Using LlamaParse for {path}")
+                    llama_docs = parser.load_data(path)
+                    for l_doc in llama_docs:
+                        all_documents.append(
+                            Document(page_content=l_doc.text, metadata=l_doc.metadata)
                         )
-                    )
+                else:
+                    raise Exception("LlamaParse missing config")
+
             else:
-                raise Exception("LlamaParse skipped (No API Key)")
-                
+                print(f"⏩ Large doc ({page_count} pgs): Switching to Fast PyPDF for {path}")
+                loader = PyPDFLoader(path)
+                all_documents.extend(loader.load())
+
         except Exception as e:
-            # 2. Fallback to PyPDF (Standard)
-            print(f"⚠️ LlamaParse failed/skipped: {e}. Falling back to PyPDF.")
+            # Global Fallback
+            print(f"⚠️ Primary parsing failed for {path}: {e}. Falling back to PyPDF.")
             loader = PyPDFLoader(path)
             all_documents.extend(loader.load())
             
-    # CRITICAL CHECK
     if not all_documents:
-        raise ValueError("❌ No content could be extracted from these PDFs. They might be empty or scanned images.")
+        raise ValueError("❌ No content extracted from PDFs.")
         
     return all_documents
-
-
-
-
-
-
